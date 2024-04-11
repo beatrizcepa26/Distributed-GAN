@@ -10,8 +10,6 @@ import os
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 print("Number of GPUs: ", len(physical_devices))
 
-# allocate only as much GPU memory as needed for the runtime allocations: it starts out allocating very little memory, 
-    # and as the program gets run and more GPU memory is needed, the GPU memory region is extended for the TensorFlow process
 tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
@@ -148,20 +146,8 @@ def main():
     # distribution strategy
     slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
     mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver)
-
-    ''' MultiWorkerMirroredStrategy implements synchronous training, where the steps of training are synced across the workers and replicas
-        
-        All workers train over different slices of input data in sync, and aggregating gradients at each step 
-        
-        tf.distribute autoshards the input dataset in multi-worker training with MultiWorkerMirroredStrategy. Autosharding a dataset over a set 
-        of workers means that each worker is assigned a subset of the entire dataset (default). This is to ensure that at each step, a global 
-        batch size of non-overlapping dataset elements will be processed by each worker'''
-    
+   
     print('Number of replicas:', mirrored_strategy.num_replicas_in_sync)
-
-    # access each replica's rank
-    # rank = tf.distribute.get_replica_context().replica_id_in_sync_group
-    
     
     # create dataset from folder
     dataset = keras.utils.image_dataset_from_directory(
@@ -170,12 +156,6 @@ def main():
     # normalize the images 
     dataset = dataset.map(lambda x: x / 255.0)
 
-    # turn the auto sharding off, so that each replica processes every example 
-    # options = tf.data.Options()
-    # options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
-    # dataset_no_auto_shard = dataset.with_options(options)
-
-
     # create the generator
     with mirrored_strategy.scope():
         generator = keras.models.Sequential(
@@ -183,48 +163,48 @@ def main():
                 keras.Input(shape=(args.n_hidden)),
                 
                 layers.Dense(4 * 4 * 1024, 
-                            kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #l0
-                layers.BatchNormalization(synchronized=True), #bn0
+                            kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),
+                layers.BatchNormalization(synchronized=True), 
                 layers.Reshape((4, 4, 1024)),
                 
                 layers.Conv2DTranspose(512, kernel_size=4, strides=2, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc1
-                layers.BatchNormalization(synchronized=True), #bn1
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True),
                 layers.Dropout(0.5),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2DTranspose(256, kernel_size=4, strides=2, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc2
-                layers.BatchNormalization(synchronized=True), #bn2
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True), 
                 layers.Dropout(0.5),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2DTranspose(128, kernel_size=4, strides=2, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc3
-                layers.BatchNormalization(synchronized=True), #bn3
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True), 
                 layers.Dropout(0.5),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2DTranspose(64, kernel_size=4, strides=2, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc4
-                layers.BatchNormalization(synchronized=True), #bn4
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True), 
                 layers.Dropout(0.5),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2DTranspose(32, kernel_size=4, strides=2, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc5
-                layers.BatchNormalization(synchronized=True), #bn5
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True), 
                 layers.Dropout(0.5),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2DTranspose(3, kernel_size=4, strides=2, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc6
-                layers.BatchNormalization(synchronized=True), #bn6
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True), 
                 layers.Dropout(0.5),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2DTranspose(3, kernel_size=3, strides=1, padding="same",
-                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #dc7
+                                       kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),
                 layers.Dropout(0.5),
                 layers.Activation(activations.tanh),
             ],
@@ -239,62 +219,55 @@ def main():
                 keras.Input(shape=(256, 256, 3)),
 
                 layers.Conv2D(32, kernel_size=4, strides=2, padding="same",
-                            kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c0_0
+                            kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(64, kernel_size=4, strides=2, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c0_1   
-                layers.BatchNormalization(synchronized=True), #bn0_1
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True),
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(128, kernel_size=4, strides=2, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c1_0   
-                layers.BatchNormalization(synchronized=True), #bn1_0
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(256, kernel_size=4, strides=2, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c1_1   
-                layers.BatchNormalization(synchronized=True), #bn1_1
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(256, kernel_size=3, strides=1, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c2_0   
-                layers.BatchNormalization(synchronized=True), #bn2_0
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(512, kernel_size=4, strides=2, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c2_1   
-                layers.BatchNormalization(synchronized=True), #bn2_1
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(512, kernel_size=3, strides=1, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c3_0
-                layers.BatchNormalization(synchronized=True), #bn3_0
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), 
+                layers.BatchNormalization(synchronized=True), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(1024, kernel_size=4, strides=2, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c3_1   
-                layers.BatchNormalization(synchronized=True), #bn3_1
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True), 
                 layers.LeakyReLU(alpha=0.2),
 
                 layers.Conv2D(1024, kernel_size=3, strides=1, padding="same",
-                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)), #c4_0   
-                layers.BatchNormalization(synchronized=True), #bn4_0
+                              kernel_initializer=initializers.RandomNormal(mean=0,stddev=0.02)),    
+                layers.BatchNormalization(synchronized=True), 
                 layers.Activation(activations.sigmoid),
 
                 layers.Flatten(),
-                layers.Dense(1) #l5
+                layers.Dense(1)
             ],
             name="discriminator",
             )
-        discriminator.summary()
-
-        # # print models' summary only for replica with rank 0
-        # if rank==0: 
-        #     generator.summary() 
-        #     discriminator.summary()
-
-        
+        discriminator.summary()     
         
         epochs = args.epoch
 
@@ -306,11 +279,6 @@ def main():
             loss_fn=keras.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
         ) 
 
-        # gan.fit(
-        #     dataset, epochs=epochs//mirrored_strategy.num_replicas_in_sync, 
-        #     verbose=1, callbacks=[GANMonitor(num_img=1, latent_dim=args.n_hidden)]
-        #     ) # verbose=1 gives progress bar
-
         gan.fit(
             dataset, epochs=epochs, verbose=1, callbacks=[GANMonitor(num_img=1, latent_dim=args.n_hidden)]
             ) # verbose=1 gives progress bar
@@ -318,7 +286,6 @@ def main():
         # save the model
         gan.save("dcgan.keras")
 
-    # gan.save('gan.keras')
 
 if __name__ == '__main__':
     main()
