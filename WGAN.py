@@ -84,7 +84,6 @@ class WGAN(keras.Model):
                 fake_logits = self.discriminator(fake_images, training=True)
                 # Get the logits for the real images
                 real_logits = self.discriminator(real_images, training=True)
-                # type(real_logits)) -> <class 'tensorflow.python.framework.ops.SymbolicTensor'>
 
                 # Calculate the discriminator loss using the fake and real image logits
                 d_cost = self.d_loss_fn(real_img=real_logits, fake_img=fake_logits)
